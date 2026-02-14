@@ -29,6 +29,10 @@ const coachBuildSchema = recommendBaseSchema.extend({
   style_request: z.string().min(1).max(500)
 });
 
+const pickerSchema = recommendBaseSchema.extend({
+  mode: z.string().max(40).optional().default('')
+});
+
 const metaQuerySchema = z.object({
   hero_id: z.coerce.number().int().positive(),
   max: z.coerce.number().int().min(1).max(10).default(6)
@@ -53,6 +57,7 @@ module.exports = {
   recommendSchema,
   coachAskSchema,
   coachBuildSchema,
+  pickerSchema,
   metaQuerySchema,
   validate
 };

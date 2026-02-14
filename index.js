@@ -9,10 +9,12 @@ const { getHeroName } = require('./src/heroes');
 const { applyRules } = require('./src/rules');
 const { getPatchState, refreshPatchState } = require('./src/patches');
 const { makeRequestId, runCoachAsk, runCoachBuild } = require('./src/ai-coach');
+const { extractMode, runPicker } = require('./src/picker');
 const {
   recommendSchema,
   coachAskSchema,
   coachBuildSchema,
+  pickerSchema,
   metaQuerySchema,
   validate
 } = require('./src/validation');
@@ -144,14 +146,25 @@ app.post('/coach/build', validate(coachBuildSchema), async (req, res, next) => {
     const payload = req.validated;
     const requestId = makeRequestId(payload.request_id);
     const context = await buildRecommendationContext(payload);
-    const coach = await runCoachBuild(
-      {
-        request_id: requestId,
-        request: payload,
-        context
-      },
-      payload.style_request
-    );
+    const mode = extractMode(payload.style_request);
+
+    // If request is a simple "mode build" (magic/tank/etc), prefer stat picker to avoid upstream LLM limits.
+    let coach;
+    if (mode) {
+      coach = runPicker(payload, context, { mode });
+      coach.model = 'stat_picker_v1';
+      coach.provider = 'stat_picker';
+    } else {
+      coach = await runCoachBuild(
+        {
+          request_id: requestId,
+          request: payload,
+          context
+        },
+        payload.style_request
+      );
+      coach.provider = 'groq';
+    }
 
     return res.json({
       request_id: requestId,
@@ -160,8 +173,38 @@ app.post('/coach/build', validate(coachBuildSchema), async (req, res, next) => {
       final: coach.final,
       notes: coach.notes,
       assistant: {
-        provider: 'groq',
+        provider: coach.provider || 'groq',
         model: coach.model
+      },
+      context_meta: {
+        hero: context.hero,
+        patch: context.patch,
+        meta_updated_at: context.meta_updated_at
+      },
+      generated_at: new Date().toISOString()
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/picker', validate(pickerSchema), async (req, res, next) => {
+  try {
+    const payload = req.validated;
+    const requestId = makeRequestId(payload.request_id);
+    const context = await buildRecommendationContext(payload);
+    const mode = extractMode(payload.mode);
+    const picked = runPicker(payload, context, { mode });
+
+    return res.json({
+      request_id: requestId,
+      mode: picked.mode,
+      baseline: context.final,
+      final: picked.final,
+      notes: picked.notes,
+      assistant: {
+        provider: 'stat_picker',
+        model: 'stat_picker_v1'
       },
       context_meta: {
         hero: context.hero,
