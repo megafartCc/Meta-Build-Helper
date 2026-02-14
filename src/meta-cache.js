@@ -109,8 +109,15 @@ function normalizeStage(popularityPayload, itemIdMap, max) {
 async function getHeroMeta(heroId, max = 6, forceRefresh = false) {
   const constants = await ensureItemIdMap(forceRefresh);
   const cached = await getCachedHeroMeta(heroId);
+  const cacheHasStarting =
+    cached && Array.isArray(cached.starting_items) && cached.starting_items.length > 0;
 
-  if (!forceRefresh && cached && isFresh(cached.updated_at, config.heroMetaTtlSeconds)) {
+  if (
+    !forceRefresh &&
+    cached &&
+    isFresh(cached.updated_at, config.heroMetaTtlSeconds) &&
+    cacheHasStarting
+  ) {
     return {
       source: 'cache',
       heroId,
