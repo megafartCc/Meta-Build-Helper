@@ -5,6 +5,7 @@ const config = require('./src/config');
 const db = require('./src/db');
 const { ensureCoreSchema } = require('./src/bootstrap');
 const { getHeroMeta, refreshHotHeroes } = require('./src/meta-cache');
+const { getHeroName } = require('./src/heroes');
 const { applyRules } = require('./src/rules');
 const { getPatchState, refreshPatchState } = require('./src/patches');
 const { recommendSchema, metaQuerySchema, validate } = require('./src/validation');
@@ -46,9 +47,11 @@ app.get('/meta', validate(metaQuerySchema, 'query'), async (req, res, next) => {
   try {
     const { hero_id: heroId, max } = req.validated;
     const meta = await getHeroMeta(heroId, max);
+    const heroName = await getHeroName(heroId);
     return res.json({
       source: meta.source,
       hero_id: heroId,
+      hero_name: heroName,
       updated_at: meta.updatedAt,
       early: meta.early,
       mid: meta.mid,
@@ -63,6 +66,7 @@ app.post('/recommend', validate(recommendSchema), async (req, res, next) => {
   try {
     const payload = req.validated;
     const baselineMeta = await getHeroMeta(payload.hero_id, 6);
+    const heroName = await getHeroName(payload.hero_id);
 
     const baseline = {
       early: baselineMeta.early,
@@ -74,6 +78,10 @@ app.post('/recommend', validate(recommendSchema), async (req, res, next) => {
     const patch = await getPatchState();
 
     return res.json({
+      hero: {
+        id: payload.hero_id,
+        name: heroName
+      },
       patch: {
         id: patch?.current_patch_id || 'unknown',
         updated_at: patch?.updated_at ? new Date(patch.updated_at).toISOString() : null

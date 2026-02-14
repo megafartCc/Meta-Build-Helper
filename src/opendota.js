@@ -17,11 +17,16 @@ async function fetchItemsConstants() {
   return fetchJson('/constants/items');
 }
 
+async function fetchHeroesConstants() {
+  return fetchJson('/constants/heroes');
+}
+
 async function fetchHeroItemPopularity(heroId) {
   return fetchJson(`/heroes/${heroId}/itemPopularity`);
 }
 
 module.exports = {
   fetchItemsConstants,
+  fetchHeroesConstants,
   fetchHeroItemPopularity
 };
