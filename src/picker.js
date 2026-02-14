@@ -3,14 +3,20 @@ const { normalizeItemName } = require('./util-items');
 const STAGES = ['starting', 'early', 'mid', 'late'];
 
 const MODE_ALIASES = [
-  { mode: 'magic', re: /\b(magic|magical|caster|spell|ап|ap)\b/i },
-  { mode: 'magic', re: /(маг|магич|магии|кастер|заклин)/i },
+  { mode: 'magic', re: /\b(magic|magical|caster|spell|ap)\b/i },
+  {
+    mode: 'magic',
+    re: /(\u043c\u0430\u0433|\u043c\u0430\u0433\u0438\u0447|\u043c\u0430\u0433\u0438\u0438|\u043a\u0430\u0441\u0442\u0435\u0440|\u0437\u0430\u043a\u043b\u0438\u043d)/i
+  },
   { mode: 'tank', re: /\b(tank|tanky|frontline)\b/i },
-  { mode: 'tank', re: /(танк|жир|толст)/i },
+  { mode: 'tank', re: /(\u0442\u0430\u043d\u043a|\u0436\u0438\u0440|\u0442\u043e\u043b\u0441\u0442)/i },
   { mode: 'utility', re: /\b(utility|support|save)\b/i },
-  { mode: 'utility', re: /(утил|сейв|саппорт|поддерж)/i },
+  {
+    mode: 'utility',
+    re: /(\u0443\u0442\u0438\u043b|\u0441\u0435\u0439\u0432|\u0441\u0430\u043f\u043f\u043e\u0440\u0442|\u043f\u043e\u0434\u0434\u0435\u0440\u0436)/i
+  },
   { mode: 'greed', re: /\b(greed|greedy|farm)\b/i },
-  { mode: 'greed', re: /(жадн|фарм)/i }
+  { mode: 'greed', re: /(\u0436\u0430\u0434\u043d|\u0444\u0430\u0440\u043c)/i }
 ];
 
 const MODE_PREFER = {
