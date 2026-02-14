@@ -93,6 +93,62 @@ function extractFirstJsonObject(text) {
   return '';
 }
 
+function summarizeAskContext(statContext) {
+  const request = statContext?.request || {};
+  const context = statContext?.context || {};
+
+  const hero = context?.hero || {};
+  const patch = context?.patch || {};
+  const baseline = context?.baseline || {};
+  const final = context?.final || {};
+
+  const enemyKeyItems = [];
+  const seen = new Set();
+  for (const snap of request.enemy_items || []) {
+    for (const item of snap?.items || []) {
+      const normalized = normalizeItemName(item);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      enemyKeyItems.push(normalized);
+      if (enemyKeyItems.length >= 14) {
+        break;
+      }
+    }
+    if (enemyKeyItems.length >= 14) {
+      break;
+    }
+  }
+
+  return {
+    hero: {
+      id: hero.id || request.hero_id,
+      name: hero.name || ''
+    },
+    patch: patch?.id || 'unknown',
+    pos: request.pos,
+    facet: request.facet || '',
+    time_s: request.time_s,
+    current_items: (request.current_items || []).slice(0, 12),
+    enemies: (request.enemies || []).slice(0, 5),
+    allies: (request.allies || []).slice(0, 5),
+    enemy_key_items: enemyKeyItems,
+    baseline: {
+      starting: (baseline.starting || []).slice(0, 8),
+      early: (baseline.early || []).slice(0, 8),
+      mid: (baseline.mid || []).slice(0, 8),
+      late: (baseline.late || []).slice(0, 8)
+    },
+    backend_final: {
+      starting: (final.starting || []).slice(0, 8),
+      early: (final.early || []).slice(0, 8),
+      mid: (final.mid || []).slice(0, 8),
+      late: (final.late || []).slice(0, 8)
+    }
+  };
+}
+
 function normalizeItemName(raw) {
   let value = String(raw || '')
     .trim()
@@ -250,7 +306,7 @@ async function callCoachModel(messages, { temperature, maxTokens, forceJson = fa
 }
 
 function buildAskMessages(statContext, question) {
-  const contextJson = JSON.stringify(statContext);
+  const contextJson = JSON.stringify(summarizeAskContext(statContext));
   return [
     {
       role: 'system',
@@ -342,7 +398,7 @@ async function runCoachAsk(statContext, question) {
   const messages = buildAskMessages(statContext, question);
   const decoded = await callCoachModel(messages, {
     temperature: 0.35,
-    maxTokens: Math.min(config.coachAiMaxTokens, 350),
+    maxTokens: Math.min(config.coachAiMaxTokens, 220),
     forceJson: false
   });
   const answer = sanitizeCoachAnswer(extractText(decoded));
