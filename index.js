@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 
 const config = require('./src/config');
 const db = require('./src/db');
+const { ensureCoreSchema } = require('./src/bootstrap');
 const { getHeroMeta, refreshHotHeroes } = require('./src/meta-cache');
 const { applyRules } = require('./src/rules');
 const { getPatchState, refreshPatchState } = require('./src/patches');
@@ -110,6 +111,15 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: 'InternalServerError', message: error.message });
 });
 
-app.listen(config.port, () => {
-  console.log(`meta-build-helper listening on :${config.port}`);
+async function start() {
+  await ensureCoreSchema();
+
+  app.listen(config.port, () => {
+    console.log(`meta-build-helper listening on :${config.port}`);
+  });
+}
+
+start().catch((error) => {
+  console.error('Startup failed:', error);
+  process.exit(1);
 });
