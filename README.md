@@ -23,7 +23,8 @@ Production-ready Node.js backend for a Dota 2 meta build helper.
 ## Environment Variables
 Copy `.env.example` and set values:
 
-- `DATABASE_URL` (required)
+- `DATABASE_URL` (recommended)
+- or Postgres parts: `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`
 - `PORT` (default: `3000`)
 - `ITEM_CONSTANTS_TTL_SECONDS` (default: `86400`)
 - `HERO_META_TTL_SECONDS` (default: `2700`)
