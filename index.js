@@ -198,7 +198,19 @@ app.use((error, _req, res, _next) => {
   const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
   const code = status >= 500 ? 'InternalServerError' : 'RequestError';
   const fallbackMessage = status >= 500 ? 'Internal server error' : 'Request failed';
-  res.status(status).json({ error: code, message: error?.message || fallbackMessage });
+  const retryAfterSeconds = Number.isFinite(error?.retryAfterSeconds)
+    ? Math.max(1, Math.min(600, Math.floor(error.retryAfterSeconds)))
+    : null;
+
+  if (retryAfterSeconds && status === 429) {
+    res.set('Retry-After', String(retryAfterSeconds));
+  }
+
+  res.status(status).json({
+    error: code,
+    message: error?.message || fallbackMessage,
+    ...(retryAfterSeconds ? { retry_after_s: retryAfterSeconds } : {})
+  });
 });
 
 async function start() {

@@ -8,6 +8,8 @@ class HttpError extends Error {
   }
 }
 
+let upstreamCooldownUntilMs = 0;
+
 const ITEM_ALIASES = {
   bkb: 'item_black_king_bar',
   item_bkb: 'item_black_king_bar',
@@ -145,8 +147,48 @@ function normalizeStages(payload) {
   };
 }
 
+function clampInt(value, min, max) {
+  const num = Number.parseInt(value, 10);
+  if (!Number.isFinite(num)) {
+    return 0;
+  }
+  return Math.max(min, Math.min(max, num));
+}
+
+function parseRetryAfterSeconds(response) {
+  try {
+    const header = response?.headers?.get?.('retry-after');
+    if (!header) {
+      return 0;
+    }
+
+    // retry-after can be seconds or an HTTP-date.
+    const seconds = Number.parseInt(header, 10);
+    if (Number.isInteger(seconds) && seconds > 0) {
+      return clampInt(seconds, 1, 600);
+    }
+
+    const dateMs = Date.parse(header);
+    if (!Number.isNaN(dateMs)) {
+      const diff = Math.ceil((dateMs - Date.now()) / 1000);
+      return clampInt(diff, 1, 600);
+    }
+  } catch (_error) {
+    // ignore
+  }
+  return 0;
+}
+
 async function callCoachModel(messages, { temperature, maxTokens, forceJson = false } = {}) {
   ensureAiEnabled();
+
+  const now = Date.now();
+  if (now < upstreamCooldownUntilMs) {
+    const retryAfterSeconds = Math.ceil((upstreamCooldownUntilMs - now) / 1000);
+    const err = new HttpError(429, `Coach AI cooldown active (${retryAfterSeconds}s)`);
+    err.retryAfterSeconds = clampInt(retryAfterSeconds, 1, 600);
+    throw err;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.coachAiTimeoutMs);
@@ -193,7 +235,15 @@ async function callCoachModel(messages, { temperature, maxTokens, forceJson = fa
 
   if (!response.ok) {
     const apiMessage = decoded?.error?.message || text || `HTTP ${response.status}`;
-    throw new HttpError(response.status, `Coach AI upstream error: ${apiMessage}`);
+    const err = new HttpError(response.status, `Coach AI upstream error: ${apiMessage}`);
+
+    if (response.status === 429) {
+      const retryAfterSeconds = parseRetryAfterSeconds(response) || 20;
+      upstreamCooldownUntilMs = Math.max(upstreamCooldownUntilMs, Date.now() + retryAfterSeconds * 1000);
+      err.retryAfterSeconds = clampInt(retryAfterSeconds, 1, 600);
+    }
+
+    throw err;
   }
 
   return decoded;
@@ -294,4 +344,3 @@ module.exports = {
   runCoachAsk,
   runCoachBuild
 };
-
