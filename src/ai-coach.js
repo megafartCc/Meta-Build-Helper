@@ -264,6 +264,19 @@ function buildAskMessages(statContext, question) {
     },
     {
       role: 'system',
+      content:
+        'Output rules: plain text only (no markdown, no bold, no bullets, no emojis). ' +
+        'Keep it very short: target <= 450 characters. ' +
+        'When listing items, use ONLY item_ names, comma-separated. ' +
+        'Format EXACTLY 5 lines:\n' +
+        'START: item_...\n' +
+        'EARLY: item_...\n' +
+        'MID: item_...\n' +
+        'LATE: item_...\n' +
+        'WHY: 1-2 short reasons.'
+    },
+    {
+      role: 'system',
       content: `Match context JSON: ${contextJson}`
     },
     {
@@ -291,6 +304,40 @@ function buildStyleMessages(statContext, styleRequest) {
   ];
 }
 
+function sanitizeCoachAnswer(text, maxChars = 650) {
+  let out = String(text || '').replace(/\r/g, '\n').trim();
+  if (!out) {
+    return '';
+  }
+
+  out = out
+    .replace(/\*\*/g, '')
+    .replace(/__/g, '')
+    .replace(/`/g, '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/^>\s*/gm, '');
+
+  out = out
+    .replace(/[—–]/g, '-')
+    .replace(/[“”«»]/g, '"')
+    .replace(/[‘’]/g, "'");
+
+  out = out.replace(/[^\p{L}\p{N}\s.,;:()/_\-+!?]/gu, ' ');
+  out = out.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+  const lines = out
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  out = lines.slice(0, 8).join('\n');
+
+  if (out.length > maxChars) {
+    out = out.slice(0, maxChars).trim();
+  }
+
+  return out;
+}
+
 async function runCoachAsk(statContext, question) {
   const messages = buildAskMessages(statContext, question);
   const decoded = await callCoachModel(messages, {
@@ -298,7 +345,7 @@ async function runCoachAsk(statContext, question) {
     maxTokens: Math.min(config.coachAiMaxTokens, 350),
     forceJson: false
   });
-  const answer = extractText(decoded).trim();
+  const answer = sanitizeCoachAnswer(extractText(decoded));
   return {
     answer: answer || 'No answer returned by coach model.',
     model: decoded?.model || config.coachAiModel
