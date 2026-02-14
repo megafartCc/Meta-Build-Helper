@@ -10,6 +10,7 @@ const { applyRules } = require('./src/rules');
 const { getPatchState, refreshPatchState } = require('./src/patches');
 const { makeRequestId, runCoachAsk, runCoachBuild } = require('./src/ai-coach');
 const { extractMode, runPicker } = require('./src/picker');
+const { answerCoachAsk } = require('./src/stat-coach');
 const {
   recommendSchema,
   coachAskSchema,
@@ -117,19 +118,22 @@ app.post('/coach/ask', validate(coachAskSchema), async (req, res, next) => {
     const payload = req.validated;
     const requestId = makeRequestId(payload.request_id);
     const context = await buildRecommendationContext(payload);
-    const coach = await runCoachAsk(
-      {
-        request_id: requestId,
-        request: payload,
-        context
-      },
-      payload.question
-    );
+    const statContext = {
+      request_id: requestId,
+      request: payload,
+      context
+    };
+
+    // No external LLM needed: default to stat coach if forced or no key configured.
+    const forceStat = Boolean(config.coachForceStat) || !config.coachAiApiKey;
+    const coach = forceStat
+      ? answerCoachAsk({ payload, context }, payload.question)
+      : await runCoachAsk(statContext, payload.question);
 
     return res.json({
       request_id: requestId,
       assistant: {
-        provider: 'groq',
+        provider: coach.provider || 'groq',
         model: coach.model,
         answer: coach.answer
       },
@@ -147,10 +151,11 @@ app.post('/coach/build', validate(coachBuildSchema), async (req, res, next) => {
     const requestId = makeRequestId(payload.request_id);
     const context = await buildRecommendationContext(payload);
     const mode = extractMode(payload.style_request);
+    const forceStat = Boolean(config.coachForceStat) || !config.coachAiApiKey;
 
     // If request is a simple "mode build" (magic/tank/etc), prefer stat picker to avoid upstream LLM limits.
     let coach;
-    if (mode) {
+    if (mode || forceStat) {
       coach = runPicker(payload, context, { mode });
       coach.model = 'stat_picker_v1';
       coach.provider = 'stat_picker';

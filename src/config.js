@@ -20,6 +20,14 @@ function asInt(name, fallback) {
   return parsed;
 }
 
+function asBool(name, fallback = false) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(String(raw).trim().toLowerCase());
+}
+
 function buildDatabaseUrlFromPgVars() {
   const host = process.env.PGHOST;
   const port = process.env.PGPORT || '5432';
@@ -59,6 +67,7 @@ module.exports = {
   heroMetaTtlSeconds: asInt('HERO_META_TTL_SECONDS', 2700),
   requestsPerMinute: asInt('REQUESTS_PER_MINUTE', 120),
   coachAiApiKey: process.env.COACH_AI_API_KEY || process.env.GROQ_API_KEY || '',
+  coachForceStat: asBool('COACH_FORCE_STAT', false),
   coachAiEndpoint:
     process.env.COACH_AI_ENDPOINT || 'https://api.groq.com/openai/v1/chat/completions',
   coachAiModel: process.env.COACH_AI_MODEL || 'llama-3.3-70b-versatile',
