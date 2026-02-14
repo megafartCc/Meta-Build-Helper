@@ -9,6 +9,7 @@ const { getPatchState, refreshPatchState } = require('./src/patches');
 const { recommendSchema, metaQuerySchema, validate } = require('./src/validation');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '256kb' }));
 app.use(
   rateLimit({
