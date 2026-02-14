@@ -53,6 +53,7 @@ app.get('/meta', validate(metaQuerySchema, 'query'), async (req, res, next) => {
       hero_id: heroId,
       hero_name: heroName,
       updated_at: meta.updatedAt,
+      starting: meta.starting,
       early: meta.early,
       mid: meta.mid,
       late: meta.late
@@ -69,6 +70,7 @@ app.post('/recommend', validate(recommendSchema), async (req, res, next) => {
     const heroName = await getHeroName(payload.hero_id);
 
     const baseline = {
+      starting: baselineMeta.starting,
       early: baselineMeta.early,
       mid: baselineMeta.mid,
       late: baselineMeta.late

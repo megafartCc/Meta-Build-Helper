@@ -12,11 +12,17 @@ async function ensureCoreSchema() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS cache_hero_item_popularity (
       hero_id INTEGER PRIMARY KEY,
+      starting_items JSONB NOT NULL DEFAULT '[]'::jsonb,
       early_items JSONB NOT NULL,
       mid_items JSONB NOT NULL,
       late_items JSONB NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE cache_hero_item_popularity
+    ADD COLUMN IF NOT EXISTS starting_items JSONB NOT NULL DEFAULT '[]'::jsonb
   `);
 
   await db.query(`

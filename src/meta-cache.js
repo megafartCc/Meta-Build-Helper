@@ -70,7 +70,7 @@ async function ensureItemIdMap(forceRefresh = false) {
 
 async function getCachedHeroMeta(heroId) {
   const { rows } = await db.query(
-    `SELECT hero_id, early_items, mid_items, late_items, updated_at
+    `SELECT hero_id, starting_items, early_items, mid_items, late_items, updated_at
      FROM cache_hero_item_popularity
      WHERE hero_id = $1`,
     [heroId]
@@ -78,24 +78,32 @@ async function getCachedHeroMeta(heroId) {
   return rows[0] || null;
 }
 
-async function upsertHeroMeta(heroId, earlyItems, midItems, lateItems) {
+async function upsertHeroMeta(heroId, startingItems, earlyItems, midItems, lateItems) {
   await db.query(
-    `INSERT INTO cache_hero_item_popularity (hero_id, early_items, mid_items, late_items, updated_at)
-     VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, NOW())
+    `INSERT INTO cache_hero_item_popularity (hero_id, starting_items, early_items, mid_items, late_items, updated_at)
+     VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, NOW())
      ON CONFLICT (hero_id)
-     DO UPDATE SET early_items = EXCLUDED.early_items,
+     DO UPDATE SET starting_items = EXCLUDED.starting_items,
+                   early_items = EXCLUDED.early_items,
                    mid_items = EXCLUDED.mid_items,
                    late_items = EXCLUDED.late_items,
                    updated_at = NOW()`,
-    [heroId, JSON.stringify(earlyItems), JSON.stringify(midItems), JSON.stringify(lateItems)]
+    [
+      heroId,
+      JSON.stringify(startingItems),
+      JSON.stringify(earlyItems),
+      JSON.stringify(midItems),
+      JSON.stringify(lateItems)
+    ]
   );
 }
 
 function normalizeStage(popularityPayload, itemIdMap, max) {
+  const starting = topItemNames(popularityPayload.start_game_items, itemIdMap, max);
   const early = topItemNames(popularityPayload.early_game_items, itemIdMap, max);
   const mid = topItemNames(popularityPayload.mid_game_items, itemIdMap, max);
   const late = topItemNames(popularityPayload.late_game_items, itemIdMap, max);
-  return { early, mid, late };
+  return { starting, early, mid, late };
 }
 
 async function getHeroMeta(heroId, max = 6, forceRefresh = false) {
@@ -107,6 +115,7 @@ async function getHeroMeta(heroId, max = 6, forceRefresh = false) {
       source: 'cache',
       heroId,
       updatedAt: cached.updated_at,
+      starting: (cached.starting_items || []).slice(0, max),
       early: (cached.early_items || []).slice(0, max),
       mid: (cached.mid_items || []).slice(0, max),
       late: (cached.late_items || []).slice(0, max)
@@ -116,12 +125,13 @@ async function getHeroMeta(heroId, max = 6, forceRefresh = false) {
   try {
     const popularity = await fetchHeroItemPopularity(heroId);
     const stages = normalizeStage(popularity, constants.itemIdMap, Math.max(max, 10));
-    await upsertHeroMeta(heroId, stages.early, stages.mid, stages.late);
+    await upsertHeroMeta(heroId, stages.starting, stages.early, stages.mid, stages.late);
 
     return {
       source: forceRefresh ? 'opendota_forced' : 'opendota',
       heroId,
       updatedAt: new Date().toISOString(),
+      starting: stages.starting.slice(0, max),
       early: stages.early.slice(0, max),
       mid: stages.mid.slice(0, max),
       late: stages.late.slice(0, max)
@@ -132,6 +142,7 @@ async function getHeroMeta(heroId, max = 6, forceRefresh = false) {
         source: 'stale_cache',
         heroId,
         updatedAt: cached.updated_at,
+        starting: (cached.starting_items || []).slice(0, max),
         early: (cached.early_items || []).slice(0, max),
         mid: (cached.mid_items || []).slice(0, max),
         late: (cached.late_items || []).slice(0, max)

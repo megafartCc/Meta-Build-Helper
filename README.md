@@ -58,7 +58,7 @@ Meta:
 ```bash
 curl "http://localhost:3000/meta?hero_id=94&max=6"
 ```
-Response includes both `hero_id` and `hero_name`.
+Response includes `hero_id`, `hero_name`, and stage arrays: `starting`, `early`, `mid`, `late`.
 
 Recommend:
 ```bash

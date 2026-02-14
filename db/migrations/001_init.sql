@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS cache_items_constants (
 
 CREATE TABLE IF NOT EXISTS cache_hero_item_popularity (
   hero_id INTEGER PRIMARY KEY,
+  starting_items JSONB NOT NULL DEFAULT '[]'::jsonb,
   early_items JSONB NOT NULL,
   mid_items JSONB NOT NULL,
   late_items JSONB NOT NULL,

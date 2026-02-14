@@ -80,6 +80,7 @@ async function getRules() {
 async function applyRules(baseline, context) {
   const rules = await getRules();
   const final = {
+    starting: [...(baseline.starting || [])],
     early: [...baseline.early],
     mid: [...baseline.mid],
     late: [...baseline.late]
@@ -96,7 +97,7 @@ async function applyRules(baseline, context) {
     const actionList = (rule.actions && rule.actions.adjustments) || [];
     for (const action of actionList) {
       const stage = String(action.stage || '').toLowerCase();
-      if (!['early', 'mid', 'late'].includes(stage)) {
+      if (!['starting', 'early', 'mid', 'late'].includes(stage)) {
         continue;
       }
 
