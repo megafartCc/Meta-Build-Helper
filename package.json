@@ -8,6 +8,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "prestart": "node scripts/migrate.js",
     "start": "node index.js",
     "dev": "node index.js",
     "migrate": "node scripts/migrate.js"
