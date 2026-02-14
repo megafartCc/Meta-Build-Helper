@@ -295,7 +295,7 @@ async function runCoachAsk(statContext, question) {
   const messages = buildAskMessages(statContext, question);
   const decoded = await callCoachModel(messages, {
     temperature: 0.35,
-    maxTokens: config.coachAiMaxTokens,
+    maxTokens: Math.min(config.coachAiMaxTokens, 350),
     forceJson: false
   });
   const answer = extractText(decoded).trim();
