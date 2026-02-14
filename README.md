@@ -13,6 +13,8 @@ Production-ready Node.js backend for a Dota 2 meta build helper.
 - `GET /health`
 - `GET /meta?hero_id=94&max=6`
 - `POST /recommend`
+- `POST /coach/ask`
+- `POST /coach/build`
 - `POST /cron/refresh`
 - `POST /cron/patch`
 - OpenDota cache with TTL:
@@ -31,6 +33,11 @@ Copy `.env.example` and set values:
 - `REQUESTS_PER_MINUTE` (default: `120`)
 - `HOT_HEROES` (default: `1,94,114`)
 - `CRON_SECRET` (optional; if set, send in `x-cron-secret` for cron endpoints)
+- `COACH_AI_API_KEY` (or `GROQ_API_KEY`)
+- `COACH_AI_ENDPOINT` (default: `https://api.groq.com/openai/v1/chat/completions`)
+- `COACH_AI_MODEL` (default: `llama-3.3-70b-versatile`)
+- `COACH_AI_TIMEOUT_MS` (default: `25000`)
+- `COACH_AI_MAX_TOKENS` (default: `700`)
 
 ## Local Run
 ```bash
@@ -75,6 +82,40 @@ curl -X POST http://localhost:3000/recommend \
   }'
 ```
 
+Coach ask (server-side AI, stateless by `request_id`):
+```bash
+curl -X POST http://localhost:3000/coach/ask \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_id": "player-a-001",
+    "hero_id": 94,
+    "pos": 1,
+    "facet": "",
+    "time_s": 1200,
+    "current_items": ["item_power_treads"],
+    "allies": ["Invoker"],
+    "enemies": ["Phantom Assassin", "Lion"],
+    "question": "What is my next item and why?"
+  }'
+```
+
+Coach build override (style transform on top of backend baseline):
+```bash
+curl -X POST http://localhost:3000/coach/build \
+  -H "Content-Type: application/json" \
+  -d '{
+    "request_id": "player-a-002",
+    "hero_id": 94,
+    "pos": 1,
+    "facet": "",
+    "time_s": 1200,
+    "current_items": ["item_power_treads"],
+    "allies": ["Invoker"],
+    "enemies": ["Phantom Assassin", "Lion"],
+    "style_request": "Give me a magical burst style build for this game"
+  }'
+```
+
 Refresh cache:
 ```bash
 curl -X POST http://localhost:3000/cron/refresh
@@ -89,3 +130,4 @@ curl -X POST http://localhost:3000/cron/patch
 - Do not commit secrets or API keys.
 - If any key was exposed previously, rotate it immediately.
 - Rules can be edited in Postgres without code changes.
+- `coach` endpoints are stateless per request. Use `request_id` to correlate responses client-side for concurrent users.

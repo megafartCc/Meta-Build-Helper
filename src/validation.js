@@ -1,15 +1,32 @@
 const { z } = require('zod');
 
 const stageArraySchema = z.array(z.string().min(1)).default([]);
+const teamItemSnapshotSchema = z.object({
+  hero: z.string().max(80).optional().default(''),
+  items: stageArraySchema
+});
 
-const recommendSchema = z.object({
+const recommendBaseSchema = z.object({
   hero_id: z.number().int().positive(),
   pos: z.number().int().min(1).max(5),
   facet: z.string().max(80).optional().default(''),
   time_s: z.number().int().min(0),
   current_items: stageArraySchema,
   allies: stageArraySchema,
-  enemies: stageArraySchema
+  enemies: stageArraySchema,
+  ally_items: z.array(teamItemSnapshotSchema).optional().default([]),
+  enemy_items: z.array(teamItemSnapshotSchema).optional().default([]),
+  request_id: z.string().max(120).optional()
+});
+
+const recommendSchema = recommendBaseSchema;
+
+const coachAskSchema = recommendBaseSchema.extend({
+  question: z.string().min(1).max(1200)
+});
+
+const coachBuildSchema = recommendBaseSchema.extend({
+  style_request: z.string().min(1).max(500)
 });
 
 const metaQuerySchema = z.object({
@@ -34,6 +51,8 @@ function validate(schema, source = 'body') {
 
 module.exports = {
   recommendSchema,
+  coachAskSchema,
+  coachBuildSchema,
   metaQuerySchema,
   validate
 };

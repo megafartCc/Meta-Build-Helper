@@ -58,6 +58,12 @@ module.exports = {
   itemConstantsTtlSeconds: asInt('ITEM_CONSTANTS_TTL_SECONDS', 86400),
   heroMetaTtlSeconds: asInt('HERO_META_TTL_SECONDS', 2700),
   requestsPerMinute: asInt('REQUESTS_PER_MINUTE', 120),
+  coachAiApiKey: process.env.COACH_AI_API_KEY || process.env.GROQ_API_KEY || '',
+  coachAiEndpoint:
+    process.env.COACH_AI_ENDPOINT || 'https://api.groq.com/openai/v1/chat/completions',
+  coachAiModel: process.env.COACH_AI_MODEL || 'llama-3.3-70b-versatile',
+  coachAiTimeoutMs: asInt('COACH_AI_TIMEOUT_MS', 25000),
+  coachAiMaxTokens: asInt('COACH_AI_MAX_TOKENS', 700),
   hotHeroes: (process.env.HOT_HEROES || '')
     .split(',')
     .map((x) => Number.parseInt(x.trim(), 10))

@@ -8,7 +8,14 @@ const { getHeroMeta, refreshHotHeroes } = require('./src/meta-cache');
 const { getHeroName } = require('./src/heroes');
 const { applyRules } = require('./src/rules');
 const { getPatchState, refreshPatchState } = require('./src/patches');
-const { recommendSchema, metaQuerySchema, validate } = require('./src/validation');
+const { makeRequestId, runCoachAsk, runCoachBuild } = require('./src/ai-coach');
+const {
+  recommendSchema,
+  coachAskSchema,
+  coachBuildSchema,
+  metaQuerySchema,
+  validate
+} = require('./src/validation');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -32,6 +39,36 @@ function requireCronAuth(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   return next();
+}
+
+async function buildRecommendationContext(payload) {
+  const baselineMeta = await getHeroMeta(payload.hero_id, 6);
+  const heroName = await getHeroName(payload.hero_id);
+
+  const baseline = {
+    starting: baselineMeta.starting,
+    early: baselineMeta.early,
+    mid: baselineMeta.mid,
+    late: baselineMeta.late
+  };
+
+  const { final, adjustments } = await applyRules(baseline, payload);
+  const patch = await getPatchState();
+
+  return {
+    hero: {
+      id: payload.hero_id,
+      name: heroName
+    },
+    patch: {
+      id: patch?.current_patch_id || 'unknown',
+      updated_at: patch?.updated_at ? new Date(patch.updated_at).toISOString() : null
+    },
+    baseline,
+    final,
+    adjustments,
+    meta_updated_at: new Date(baselineMeta.updatedAt).toISOString()
+  };
 }
 
 app.get('/health', async (_req, res) => {
@@ -66,32 +103,72 @@ app.get('/meta', validate(metaQuerySchema, 'query'), async (req, res, next) => {
 app.post('/recommend', validate(recommendSchema), async (req, res, next) => {
   try {
     const payload = req.validated;
-    const baselineMeta = await getHeroMeta(payload.hero_id, 6);
-    const heroName = await getHeroName(payload.hero_id);
+    const context = await buildRecommendationContext(payload);
+    return res.json(context);
+  } catch (error) {
+    return next(error);
+  }
+});
 
-    const baseline = {
-      starting: baselineMeta.starting,
-      early: baselineMeta.early,
-      mid: baselineMeta.mid,
-      late: baselineMeta.late
-    };
-
-    const { final, adjustments } = await applyRules(baseline, payload);
-    const patch = await getPatchState();
+app.post('/coach/ask', validate(coachAskSchema), async (req, res, next) => {
+  try {
+    const payload = req.validated;
+    const requestId = makeRequestId(payload.request_id);
+    const context = await buildRecommendationContext(payload);
+    const coach = await runCoachAsk(
+      {
+        request_id: requestId,
+        request: payload,
+        context
+      },
+      payload.question
+    );
 
     return res.json({
-      hero: {
-        id: payload.hero_id,
-        name: heroName
+      request_id: requestId,
+      assistant: {
+        provider: 'groq',
+        model: coach.model,
+        answer: coach.answer
       },
-      patch: {
-        id: patch?.current_patch_id || 'unknown',
-        updated_at: patch?.updated_at ? new Date(patch.updated_at).toISOString() : null
+      context,
+      generated_at: new Date().toISOString()
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/coach/build', validate(coachBuildSchema), async (req, res, next) => {
+  try {
+    const payload = req.validated;
+    const requestId = makeRequestId(payload.request_id);
+    const context = await buildRecommendationContext(payload);
+    const coach = await runCoachBuild(
+      {
+        request_id: requestId,
+        request: payload,
+        context
       },
-      baseline,
-      final,
-      adjustments,
-      meta_updated_at: new Date(baselineMeta.updatedAt).toISOString()
+      payload.style_request
+    );
+
+    return res.json({
+      request_id: requestId,
+      style_request: payload.style_request,
+      baseline: context.final,
+      final: coach.final,
+      notes: coach.notes,
+      assistant: {
+        provider: 'groq',
+        model: coach.model
+      },
+      context_meta: {
+        hero: context.hero,
+        patch: context.patch,
+        meta_updated_at: context.meta_updated_at
+      },
+      generated_at: new Date().toISOString()
     });
   } catch (error) {
     return next(error);
@@ -118,7 +195,10 @@ app.post('/cron/patch', requireCronAuth, async (_req, res, next) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: 'InternalServerError', message: error.message });
+  const status = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+  const code = status >= 500 ? 'InternalServerError' : 'RequestError';
+  const fallbackMessage = status >= 500 ? 'Internal server error' : 'Request failed';
+  res.status(status).json({ error: code, message: error?.message || fallbackMessage });
 });
 
 async function start() {
